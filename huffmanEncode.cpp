@@ -135,6 +135,7 @@ void getCodes(charNode* head, unordered_map<unsigned char, string>& codes, strin
     }
 }
 
+/*
 //Just represent binary layout of tree for now
 void encodeTree(charNode* root, string &str){
 
@@ -160,39 +161,45 @@ void encodeTree(charNode* root, string &str){
     }
 
 }
-
-void encodeTree2(charNode* root, string &str){
-    vector<charNode*> stack;
-
-}
-
-/*
-void encodeTree(charNode* root, vector<bool> &vec, unsigned int idx=0){
-
-    if (root->left == NULL && root->right == NULL){
-        //str += ("1" + (string) (root->symbol));
-        str += "1";
-        str += root->symbol;
-        return;
-    }
-
-    //Special Case: Huffman tree contains only one unique character
-    else if (root->left != NULL && root->right == NULL){
-        //str += "01";
-        //str += root->left->symbol;
-        str = "01" + root->left->symbol;
-        return;
-    }
-
-    else{
-        //str += "0";
-        vec.at(idx) = 0;
-        encodeTree(root->left, vec, idx+1);
-        encodeTree(root->right, vec, idx+2);
-    }
-
-}
 */
+
+
+//Assumes either null root or huffman tree with AT LEAST one character frequency
+string encodeTree(charNode* root){
+    //Special Case 1: Null Pointer
+    if (root == NULL){
+        return "";
+    }
+    string str = "";
+
+    vector<charNode*> stack;
+    stack.push_back(root);
+
+    while (stack.empty() == false){
+        charNode* curr = stack.at(stack.size() - 1);
+        stack.pop_back();
+
+        //Null Pointer
+        if (curr == NULL){
+           // Do nothing 
+        }
+        //Leaf Node
+        else if (curr->left == NULL && curr->right == NULL){
+            str += "1";
+            str += curr->symbol;
+        }
+        //Parent Node
+        else if (curr->left != NULL || curr->right != NULL){
+            str += "0";
+            if (curr->right != NULL)
+                stack.push_back(curr->right);
+            if (curr->left != NULL)
+                stack.push_back(curr->left);
+        }
+    }
+    return str;
+}
+
 
 //Returns size of header, in bits
 unsigned long int getHeaderSize(unsigned uniqueChars){
@@ -212,28 +219,124 @@ unsigned long int getMsgSize(unordered_map<unsigned char, unsigned long int> &fr
 
 
 //Returns buffer of entire encoded data (header + message)
-unsigned char* dataBuffer(ifstream& inFile, dataPkg& encodingInfo){
-    unsigned long int sz_bytes = ((encodingInfo.header_sz + encodingInfo.msg_sz) / 8) + (int) ((encodingInfo.header_sz + encodingInfo.msg_sz) % 8 != 0);
+byte* dataBuffer(charNode* head, dataPkg& encodingInfo){
+    unsigned long int sz_bytes = encodingInfo.header_sz + encodingInfo.msg_sz;
+    sz_bytes += 10 - ((sz_bytes - 6) % 8);
 
-    unsigned char* ref = new unsigned char[sz_bytes];
+    //sz_bits will always be divisible by 8 because of added bits above
+    sz_bytes /= 8;
+    
+    byte* data = new unsigned char[sz_bytes];
 
     //This is the byte we're going to use to store our memory through
     byte byte_frame = 0;
+    unsigned long int bits_written = 0; //Track how many bits are in array and in byte_frame
+    bool byte_empty = true; //Indicates if data is currently in byte_frame
+    unsigned long int idx = 0; //Where byte will be written
 
-    unsigned long int i = 0;
-    unsigned long int header_bytes = encodingInfo.header_sz / 8;
-    unsigned int header_remainder = encodingInfo.header_sz % 8;
-    
-    while (header_bytes > 0){
-        
-        --header_bytes;
+    //Write header to buffer first
+    vector<charNode*> stack;
+    stack.push_back(head);
+
+    while (stack.empty() == false){
+        charNode* curr = stack.at(stack.size() - 1);
+        stack.pop_back();
+
+        //Null Pointer
+        if (curr == NULL){
+           // Do nothing 
+        }
+        //Leaf Node
+        else if (curr->left == NULL && curr->right == NULL){
+            //str += "1";
+            //str += curr->symbol;
+            byte_frame = byte_frame << 1;
+            byte_frame += 1;
+            ++bits_written;
+            if (byte_empty == true){
+                byte_empty == false;
+            }
+            
+            //mask for copying symbol data to byte_frame
+            byte mask = 128;
+
+            //Keep filling bits until byte_frame is full
+            while (bits_written % 8 != 0){
+                byte_frame = byte_frame << 1;
+                //Check if bit was 1
+                if ((int) (curr->symbol&mask) != 0){
+                    byte_frame += 1;
+                }
+                ++bits_written;
+                if (byte_empty == true){
+                    byte_empty = false;
+                }
+
+                //Safely shift mask one bit to the right;      
+                mask /= 2;
+            }
+
+            //Write byte_frame to data
+            data[idx] = byte_frame;
+            ++idx;
+            byte_frame = 0;
+            byte_empty = true;
+            
+            //fill remaining bits from symbol into byte_frame
+            while (mask != 0){
+                //byte_frame *= 2;
+                byte_frame = byte_frame << 1;
+
+                //Check if bit was 1
+                if ((int) (curr->symbol&mask) != 0){
+                    byte_frame += 1;
+                }
+                ++bits_written;
+                if (byte_empty == true){
+                    byte_empty = false;
+                }
+                mask /= 2;
+            }
+
+            if (bits_written % 8 == 0){
+                data[idx] = byte_frame;
+                ++idx;
+                byte_frame = 0;
+                byte_empty = true;
+            }
+        }
+        //Parent Node
+        else if (curr->left != NULL || curr->right != NULL){
+            //str += "0";
+            
+            //Shift byte_frame over first
+            byte_frame = byte_frame << 1;
+            //Because we're inserting 0 at end, we dont add anything to byte_frame
+
+            ++bits_written;
+            if (byte_empty == true){
+                byte_empty = false;
+            }
+
+            //Check if another byte needs to be written to buffer
+            if (bits_written % 8 == 0){
+                data[idx] = byte_frame;
+                ++idx;
+                byte_frame = 0;
+                byte_empty = true;
+            }
+
+            if (curr->right != NULL)
+                stack.push_back(curr->right);
+            if (curr->left != NULL)
+                stack.push_back(curr->left);
+        }
     }
 
-    //Step 1: put header data into file
+    //Write encoded data to file
 
 
-
-
+    return data;
 }
 
 #define COUNT 10
@@ -293,39 +396,13 @@ int main(){
     
     //Create map of huffman codes
     getCodes(head, encodingInfo.huffmanCodes);
-    string encoded = "";
-    encodeTree(head, encoded);
+    string encoded = encodeTree(head);
     
     //Record header and msg sizes in bits to make data buffer calculations
     encodingInfo.header_sz = getHeaderSize(encodingInfo.uniqueChars);
     encodingInfo.msg_sz = getMsgSize(freq, encodingInfo.huffmanCodes);
 
     vector<bool> encodedHeader(encodingInfo.header_sz);
-    encodeTree(head, encodedHeader);
-
-
-    /*
-    charNode* test = new charNode();
-    test->left = new charNode();
-    test->left->left = new charNode();
-    test->left->left->left = new charNode();
-    test->left->left->left->symbol = 'a';
-    test->left->left->right = new charNode();
-    test->left->left->right->symbol = 'b';
-    test->left->right = new charNode();
-    test->left->right->symbol = 'c';
-    test->right = new charNode();
-    test->right->left = new charNode();
-    test->right->left->symbol = 'd';
-    test->right->right = new charNode();
-    test->right->right->symbol = 'e';
-    //test->left = new charNode();
-    //test->left->symbol = 'a';
-    encoded = "";
-    encodeTree(test, encoded);
-    */
-
-
     cout << encoded << endl;
 
     cout << "Header size: " << getHeaderSize(encodingInfo.uniqueChars) << " bits" << endl;
