@@ -6,6 +6,7 @@
 #include <string>
 
 using namespace std;
+typedef unsigned char byte;
 
 struct charNode{
     //char symbol = -1;
@@ -160,6 +161,12 @@ void encodeTree(charNode* root, string &str){
 
 }
 
+void encodeTree2(charNode* root, string &str){
+    vector<charNode*> stack;
+
+}
+
+/*
 void encodeTree(charNode* root, vector<bool> &vec, unsigned int idx=0){
 
     if (root->left == NULL && root->right == NULL){
@@ -185,7 +192,7 @@ void encodeTree(charNode* root, vector<bool> &vec, unsigned int idx=0){
     }
 
 }
-
+*/
 
 //Returns size of header, in bits
 unsigned long int getHeaderSize(unsigned uniqueChars){
@@ -204,7 +211,6 @@ unsigned long int getMsgSize(unordered_map<unsigned char, unsigned long int> &fr
 }
 
 
-
 //Returns buffer of entire encoded data (header + message)
 unsigned char* dataBuffer(ifstream& inFile, dataPkg& encodingInfo){
     unsigned long int sz_bytes = ((encodingInfo.header_sz + encodingInfo.msg_sz) / 8) + (int) ((encodingInfo.header_sz + encodingInfo.msg_sz) % 8 != 0);
@@ -212,7 +218,8 @@ unsigned char* dataBuffer(ifstream& inFile, dataPkg& encodingInfo){
     unsigned char* ref = new unsigned char[sz_bytes];
 
     //This is the byte we're going to use to store our memory through
-    unsigned char byte_frame = 0;
+    byte byte_frame = 0;
+
     unsigned long int i = 0;
     unsigned long int header_bytes = encodingInfo.header_sz / 8;
     unsigned int header_remainder = encodingInfo.header_sz % 8;
@@ -294,7 +301,7 @@ int main(){
     encodingInfo.msg_sz = getMsgSize(freq, encodingInfo.huffmanCodes);
 
     vector<bool> encodedHeader(encodingInfo.header_sz);
-    encodeTree(head, encodedHeader)
+    encodeTree(head, encodedHeader);
 
 
     /*
