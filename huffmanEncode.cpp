@@ -219,14 +219,14 @@ unsigned long int getMsgSize(unordered_map<unsigned char, unsigned long int> &fr
 
 
 //Returns buffer of entire encoded data (header + message)
-byte* dataBuffer(charNode* head, dataPkg& encodingInfo){
+byte* dataBuffer(charNode* head, ifstream& inFile, dataPkg& encodingInfo){
     unsigned long int sz_bytes = encodingInfo.header_sz + encodingInfo.msg_sz;
     sz_bytes += 10 - ((sz_bytes - 6) % 8);
 
     //sz_bits will always be divisible by 8 because of added bits above
     sz_bytes /= 8;
     
-    byte* data = new unsigned char[sz_bytes];
+    byte* data = new byte[sz_bytes]();
 
     //This is the byte we're going to use to store our memory through
     byte byte_frame = 0;
@@ -333,6 +333,13 @@ byte* dataBuffer(charNode* head, dataPkg& encodingInfo){
         }
     }
 
+    //Test case code
+    if (!byte_empty){
+        data[idx] = byte_frame;
+        byte_frame = 0;
+        ++idx;
+    }
+
     //Write encoded data to file
 
 
@@ -402,11 +409,38 @@ int main(){
     encodingInfo.header_sz = getHeaderSize(encodingInfo.uniqueChars);
     encodingInfo.msg_sz = getMsgSize(freq, encodingInfo.huffmanCodes);
 
-    vector<bool> encodedHeader(encodingInfo.header_sz);
-    cout << encoded << endl;
+    //cout << encoded << endl;
 
-    cout << "Header size: " << getHeaderSize(encodingInfo.uniqueChars) << " bits" << endl;
-    
+    //cout << "Header size: " << getHeaderSize(encodingInfo.uniqueChars) << " bits" << endl;
+    /*
+    charNode* t = new charNode();
+    t->left = new charNode();
+    t->left->left = new charNode();
+    t->left->left->left = new charNode();
+    t->left->left->left->symbol = 'a';
+    t->left->left->right = new charNode();
+    t->left->left->right->symbol = 'b';
+    t->left->right = new charNode();
+    t->left->right->symbol = 'c';
+    t->right = new charNode();
+    t->right->left = new charNode();
+    t->right->left->symbol = 'd';
+    t->right->right = new charNode();
+    t->right->right->symbol = 'e';
+
+    ifstream test; 
+    dataPkg t_data;
+    t_data.header_sz = getHeaderSize(5);
+    t_data.msg_sz = 80;
+    byte* data = dataBuffer(t, test, t_data);
+    unsigned int long n = (t_data.header_sz / 8) + ((int) (t_data.header_sz % 8 != 0));
+    for (int i = 0; i < n; i++){
+        cout << (int) data[i] << " ";
+    }
+    */
+    ifstream inFile;
+    byte* data = dataBuffer(head, inFile, encodingInfo);
+
     //print2D(head);
 
 
