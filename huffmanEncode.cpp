@@ -20,6 +20,7 @@ struct dataPkg{
     unsigned uniqueChars = 0;
     unsigned long int header_sz = 0;
     unsigned long int msg_sz = 0;
+    unsigned long int compressed_sz = 0;
     unordered_map<unsigned char, string> huffmanCodes;
 };
 
@@ -38,10 +39,10 @@ struct compare{
 };
 
 
-unordered_map<unsigned char, unsigned long int> countFreq(){
+unordered_map<unsigned char, unsigned long int> countFreq(string filename){
     unordered_map<unsigned char, unsigned long int> freq;
 
-    ifstream file("test.txt");
+    ifstream file(filename.c_str());
     char c;
     while (file.get(c)){
         freq[c]++;
@@ -135,35 +136,6 @@ void getCodes(charNode* head, unordered_map<unsigned char, string>& codes, strin
     }
 }
 
-/*
-//Just represent binary layout of tree for now
-void encodeTree(charNode* root, string &str){
-
-    if (root->left == NULL && root->right == NULL){
-        //str += ("1" + (string) (root->symbol));
-        str += "1";
-        str += root->symbol;
-        return;
-    }
-
-    //Special Case: Huffman tree contains only one unique character
-    else if (root->left != NULL && root->right == NULL){
-        //str += "01";
-        //str += root->left->symbol;
-        str = "01" + root->left->symbol;
-        return;
-    }
-
-    else{
-        str += "0";
-        encodeTree(root->left, str);
-        encodeTree(root->right, str);
-    }
-
-}
-*/
-
-
 //Assumes either null root or huffman tree with AT LEAST one character frequency
 string encodeTree(charNode* root){
     //Special Case 1: Null Pointer
@@ -219,13 +191,21 @@ unsigned long int getMsgSize(unordered_map<unsigned char, unsigned long int> &fr
 
 
 //Returns buffer of entire encoded data (header + message)
-byte* dataBuffer(charNode* head, ifstream& inFile, dataPkg& encodingInfo){
+byte* dataBuffer(charNode* head, string filename, dataPkg& encodingInfo){
     unsigned long int sz_bytes = encodingInfo.header_sz + encodingInfo.msg_sz;
+    
+    //Number of zero bits to add at end of file
+    int zero_bits = 7 - ((sz_bytes - 6) % 8);
+    //Value of last three bits in file to add at end of file
+    byte last_bits = (sz_bytes - 6) % 8;
+
     sz_bytes += 10 - ((sz_bytes - 6) % 8);
 
     //sz_bits will always be divisible by 8 because of added bits above
     sz_bytes /= 8;
-    
+
+    encodingInfo.compressed_sz = sz_bytes;
+
     byte* data = new byte[sz_bytes]();
 
     //This is the byte we're going to use to store our memory through
@@ -333,16 +313,70 @@ byte* dataBuffer(charNode* head, ifstream& inFile, dataPkg& encodingInfo){
         }
     }
 
-    //Test case code
-    if (!byte_empty){
-        data[idx] = byte_frame;
-        byte_frame = 0;
-        ++idx;
+    //Write encoded data to file
+    //At this point, we know byte_frame is either empty or partly full, but NOT full
+    ifstream file(filename.c_str());
+    char c;
+    while (file.get(c)){
+        //cast to unsigned char byte
+        byte b = static_cast<byte>(c);
+        //string huffCode = encodingInfo.huffmanCodes[b];
+        for (char bit : encodingInfo.huffmanCodes[b]){
+            byte_frame = byte_frame << 1;
+            if (bit == '1'){
+                byte_frame += 1;
+            }
+            ++bits_written;
+            if (byte_empty == true){
+                byte_empty = false;
+            }
+
+            //Check if byte_frame is full
+            if (bits_written % 8 == 0){
+                data[idx] = byte_frame;
+                ++idx;
+                byte_frame = 0;
+                byte_empty = true;
+            }
+        }
+
     }
 
-    //Write encoded data to file
+    //pad with zero bits
+    while (zero_bits > 0){
+        byte_frame = byte_frame << 1;
+        ++bits_written;
+        if (byte_empty == true){
+            byte_empty = false;
+        }
+        if (bits_written % 8 == 0){
+            data[idx] = byte_frame;
+            ++idx;
+            byte_frame = 0;
+            byte_empty = true;
+        }
 
+        --zero_bits;
+    }
 
+    //add last three bits, we know byte_frame is filled with 5 bits
+    byte mask = 4;
+    while (mask > 0){
+        byte_frame = byte_frame << 1;
+        if ((int) (last_bits&mask) != 0){
+            byte_frame += 1;
+        }
+        ++bits_written;
+        mask /= 2;
+    }
+    
+    //write final bit
+    if (bits_written % 8 == 0){
+        data[idx] = byte_frame;
+        ++idx;
+        byte_frame = 0;
+        byte_empty = true;
+    }
     return data;
 }
 
@@ -385,13 +419,22 @@ void print2D(charNode *root)
     // Pass initial space count as 0  
     print2DUtil(root, 0);  
 }  
+
+unsigned long int file_sz_bytes(unordered_map<unsigned char, unsigned long int> freq){
+    unsigned long int val = 0;
+    for (auto p : freq){
+        val += (p.second);
+    }
+    return val;
+}
   
 
 int main(){
+    string filename = "t1.txt";
     dataPkg encodingInfo;
 
     //Count frequencies of symbols in file
-    unordered_map<unsigned char, unsigned long int> freq = countFreq();
+    unordered_map<unsigned char, unsigned long int> freq = countFreq(filename);
     encodingInfo.uniqueChars = freq.size();
 
     //Make vector of charNodes
@@ -438,9 +481,21 @@ int main(){
         cout << (int) data[i] << " ";
     }
     */
-    ifstream inFile;
-    byte* data = dataBuffer(head, inFile, encodingInfo);
+    cout << "Original file size: " << file_sz_bytes(freq) << " bytes" << endl;
+    //cout << "Encoded size: " << encodingInfo.header_sz + encodingInfo.msg_sz << " bits" << endl;
+    byte* data = dataBuffer(head, filename, encodingInfo);
+    cout << "Compressed file size: " << encodingInfo.compressed_sz << " bytes" << endl;
 
+    //print2D(head);
+    cout << endl;
+
+    for (auto p : encodingInfo.huffmanCodes){
+        cout << p.first << " " << p.second << endl;
+    }
+
+    for (int i = 0; i < encodingInfo.compressed_sz; i++){
+        cout << (int) data[i] << " ";
+    }
     //print2D(head);
 
 
