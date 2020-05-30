@@ -25,7 +25,8 @@ struct dataPkg{
     unordered_map<unsigned char, string> huffmanCodes;
 };
 
-struct compare{
+struct compare
+{
     bool operator()(const charNode* lhs, const charNode* rhs){
         if (lhs == NULL){
             return false;
@@ -40,19 +41,89 @@ struct compare{
 };
 
 
-unordered_map<unsigned char, unsigned long int> countFreq(string filename){
-    unordered_map<unsigned char, unsigned long int> freq;
+class HuffmanData
+{
+/*
+private:
+    unsigned uniqueChars = 0;
+    unsigned long int headerSz = 0;
+    unsigned long int msgSz = 0;
+    unsigned long int compressedSz = 0;
+    byte* buffer = NULL;
+    unordered_map<byte, string> huffmanCodes;
+*/
+public:
+    unsigned uniqueChars = 0;
+    unsigned long int headerSz = 0;
+    unsigned long int msgSz = 0;
+    unsigned long int originalSz = 0;
+    unsigned long int compressedSz = 0;
+    byte* buffer = NULL;
+    unordered_map<byte, string> huffmanCodes;
 
+    HuffmanData(string);
+    ~HuffmanData();
+    unordered_map<byte, unsigned long int> countFreq(string);
+    vector<charNode> makeNodes(unordered_map<byte, unsigned long int>&);
+    charNode* makeHuffmanTree(vector<charNode>&);
+    unsigned long int getHeaderSize();
+    unsigned long int getMsgSize(unordered_map<byte, unsigned long int>&);
+
+    void getCodes(charNode*, string = "");
+    byte* dataBuffer(charNode*, string);
+
+};
+
+HuffmanData::HuffmanData(string filename){
+    unordered_map<byte, unsigned long int> freq = this->countFreq(filename);
+    this->uniqueChars = freq.size();
+
+    vector<charNode> nodes = this->makeNodes(freq);
+    charNode* head = this->makeHuffmanTree(nodes);
+    
+    this->getCodes(head);
+
+    this->headerSz = this->getHeaderSize();
+    this->msgSz = this->getMsgSize(freq);
+    
+    for (pair<byte, unsigned long int> p : freq){
+        this->originalSz += p.second;
+    }
+
+    this->buffer = this->dataBuffer(head, filename);
+}
+
+HuffmanData::~HuffmanData(){
+    ;
+}
+
+unordered_map<byte, unsigned long int> HuffmanData::countFreq(string filename){
+    unordered_map<unsigned char, unsigned long int> freq;
     ifstream file(filename.c_str());
     char c;
     while (file.get(c)){
         freq[c]++;
     }
     file.close();
+    
     return freq;
 }
 
-vector<charNode> makeNodes(unordered_map<unsigned char, unsigned long int> freq){
+unsigned long int HuffmanData::getHeaderSize(){
+    return (2 * this->uniqueChars - 1) + (8 * this->uniqueChars);
+}
+
+unsigned long int HuffmanData::getMsgSize(unordered_map<byte, unsigned long int>& freq){
+    unsigned long int sz = 0;
+    
+    for (pair<unsigned char, unsigned long int> p : freq){
+        sz += p.second * this->huffmanCodes[p.first].length();
+    }
+
+    return sz;
+}
+
+vector<charNode> HuffmanData::makeNodes(unordered_map<byte, unsigned long int>& freq){
     if (freq.size() == 0){
         return vector<charNode>();
     }
@@ -78,22 +149,22 @@ vector<charNode> makeNodes(unordered_map<unsigned char, unsigned long int> freq)
     }
 }
 
-charNode* makeHuffmanTree(vector<charNode> &nodes, unsigned uniqueChars){
-    if (uniqueChars == 0){
+charNode* HuffmanData::makeHuffmanTree(vector<charNode>& nodes){
+    if (this->uniqueChars == 0){
         return NULL;
     }
-    else if (uniqueChars == 1){
+    else if (this->uniqueChars == 1){
         nodes.at(1).left = &nodes.at(0);
         nodes.at(1).freq = nodes.at(0).freq;
         return &nodes.at(1);
     }
     else{
         priority_queue<charNode*, vector<charNode*>, compare> nodeQueue;
-        for (int i = 0; i < uniqueChars; i++){
+        for (int i = 0; i < this->uniqueChars; i++){
             nodeQueue.push(&(nodes.at(i)));
         }
 
-        int i = uniqueChars;
+        int i = this->uniqueChars;
         while (nodeQueue.size() > 1){
             //Remove two smallest nodes
             charNode* tmp1 = nodeQueue.top();
@@ -110,90 +181,34 @@ charNode* makeHuffmanTree(vector<charNode> &nodes, unsigned uniqueChars){
             i++;
         }
         //Head is always located at the last element in vector
-        return &nodes.at(2 * uniqueChars - 1 - 1);
+        return &nodes.at(2 * this->uniqueChars - 1 - 1);
     }
 }
 
-//Assumes huffman tree is properly generated
-void getCodes(charNode* head, unordered_map<unsigned char, string>& codes, string currCode=""){
+void HuffmanData::getCodes(charNode* head, string currCode /*=""*/){
     //Error Case when huffman tree is empty:
     if (head == NULL){
         return;
     }
     //Base case: Leaf node encountered
     if (head->left == NULL && head->right == NULL){
-        codes[head->symbol] = currCode;
+        this->huffmanCodes[head->symbol] = currCode;
         return;
     }
     //Recursive cases:
     else{
         if (head->left != NULL){
-            getCodes(head->left, codes, currCode + "0");
+            getCodes(head->left, currCode + "0");
         }
         if (head->right != NULL){
-            getCodes(head->right, codes, currCode + "1");
-        }
-
-    }
-}
-
-//Assumes either null root or huffman tree with AT LEAST one character frequency
-string encodeTree(charNode* root){
-    //Special Case 1: Null Pointer
-    if (root == NULL){
-        return "";
-    }
-    string str = "";
-
-    vector<charNode*> stack;
-    stack.push_back(root);
-
-    while (stack.empty() == false){
-        charNode* curr = stack.at(stack.size() - 1);
-        stack.pop_back();
-
-        //Null Pointer
-        if (curr == NULL){
-           // Do nothing 
-        }
-        //Leaf Node
-        else if (curr->left == NULL && curr->right == NULL){
-            str += "1";
-            str += curr->symbol;
-        }
-        //Parent Node
-        else if (curr->left != NULL || curr->right != NULL){
-            str += "0";
-            if (curr->right != NULL)
-                stack.push_back(curr->right);
-            if (curr->left != NULL)
-                stack.push_back(curr->left);
+            getCodes(head->right, currCode + "1");
         }
     }
-    return str;
 }
-
-
-//Returns size of header, in bits
-unsigned long int getHeaderSize(unsigned uniqueChars){
-    return (2 * uniqueChars - 1) + (8 * uniqueChars);
-}
-
-//Returns size of encoded msg, in bits
-unsigned long int getMsgSize(unordered_map<unsigned char, unsigned long int> &freq, unordered_map<unsigned char, string> &codes){
-    unsigned long int sz = 0;
-    
-    for (pair<unsigned char, unsigned long int> p : freq){
-        sz += p.second * codes[p.first].length();
-    }
-
-    return sz;
-}
-
 
 //Returns buffer of entire encoded data (header + message)
-byte* dataBuffer(charNode* head, string filename, dataPkg& encodingInfo){
-    unsigned long int sz_bytes = encodingInfo.header_sz + encodingInfo.msg_sz;
+byte* HuffmanData::dataBuffer(charNode* head, string filename){
+    unsigned long int sz_bytes = this->headerSz + this->msgSz;
     
     //Number of zero bits to add at end of file
     int zero_bits = 7 - ((sz_bytes - 6) % 8);
@@ -205,7 +220,7 @@ byte* dataBuffer(charNode* head, string filename, dataPkg& encodingInfo){
     //sz_bits will always be divisible by 8 because of added bits above
     sz_bytes /= 8;
 
-    encodingInfo.compressed_sz = sz_bytes;
+    this->compressedSz = sz_bytes;
 
     byte* data = new byte[sz_bytes]();
 
@@ -322,7 +337,7 @@ byte* dataBuffer(charNode* head, string filename, dataPkg& encodingInfo){
         //cast to unsigned char byte
         byte b = static_cast<byte>(c);
         //string huffCode = encodingInfo.huffmanCodes[b];
-        for (char bit : encodingInfo.huffmanCodes[b]){
+        for (char bit : this->huffmanCodes[b]){
             byte_frame = byte_frame << 1;
             if (bit == '1'){
                 byte_frame += 1;
@@ -381,51 +396,3 @@ byte* dataBuffer(charNode* head, string filename, dataPkg& encodingInfo){
     return data;
 }
 
-#define COUNT 10
-
-void print2DUtil(charNode *root, int space)  
-{  
-    // Base case  
-    if (root == NULL)  
-        return;  
-  
-    // Increase distance between levels  
-    space += COUNT;  
-  
-    // Process right child first  
-    print2DUtil(root->right, space);  
-  
-    // Print current node after space  
-    // count  
-    cout<<endl;  
-    for (int i = COUNT; i < space; i++)  
-        cout<<" ";  
-    
-    //if ((int) root->symbol != -1 && root->symbol != '\n')
-    if (root->left == NULL and root->right == NULL && root->symbol != '\n')
-        cout<<"(" << root->freq << ", " << root->symbol << ")" <<"\n";  
-    //else if ((int) root->symbol == -1)
-    else if (root->left != NULL && root->right != NULL)
-        cout<<"(" << root->freq << ", " << "[PARENT]" << ")" <<"\n";
-    else
-        cout<<"(" << root->freq << ", " << "\\n" << ")" <<"\n";  
-
-    // Process left child  
-    print2DUtil(root->left, space);  
-}  
-  
-// Wrapper over print2DUtil()  
-void print2D(charNode *root)  
-{  
-    // Pass initial space count as 0  
-    print2DUtil(root, 0);  
-}  
-
-unsigned long int file_sz_bytes(unordered_map<unsigned char, unsigned long int> freq){
-    unsigned long int val = 0;
-    for (auto p : freq){
-        val += (p.second);
-    }
-    return val;
-}
- 
