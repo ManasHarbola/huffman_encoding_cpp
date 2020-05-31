@@ -16,15 +16,6 @@ struct charNode{
     charNode *left = NULL, *right = NULL;
 };
 
-//Contains information needed to generate compressed huffman file
-struct dataPkg{
-    unsigned uniqueChars = 0;
-    unsigned long int header_sz = 0;
-    unsigned long int msg_sz = 0;
-    unsigned long int compressed_sz = 0;
-    unordered_map<unsigned char, string> huffmanCodes;
-};
-
 struct compare
 {
     bool operator()(const charNode* lhs, const charNode* rhs){
@@ -71,6 +62,10 @@ public:
 
     void getCodes(charNode*, string = "");
     byte* dataBuffer(charNode*, string);
+    void writeFile(string);
+
+    void print2DUtil(charNode *root, int space);
+    void print2D(charNode *root);  
 
 };
 
@@ -91,6 +86,8 @@ HuffmanData::HuffmanData(string filename){
     }
 
     this->buffer = this->dataBuffer(head, filename);
+
+    this->print2D(head);
 }
 
 HuffmanData::~HuffmanData(){
@@ -396,3 +393,53 @@ byte* HuffmanData::dataBuffer(charNode* head, string filename){
     return data;
 }
 
+void HuffmanData::writeFile(string filename){
+    if (this->buffer != NULL){
+        ofstream file(filename.c_str(), ios::out | ios::binary);
+
+        for (unsigned long int i = 0; i < this->compressedSz; i++){
+            file.write((char*) &this->buffer[i], sizeof(char));
+        }
+    }
+}
+
+#define COUNT 10
+
+void HuffmanData::print2DUtil(charNode *root, int space)  
+{  
+    // Base case  
+    if (root == NULL)  
+        return;  
+  
+    // Increase distance between levels  
+    space += COUNT;  
+  
+    // Process right child first  
+    this->print2DUtil(root->right, space);  
+  
+    // Print current node after space  
+    // count  
+    cout<<endl;  
+    for (int i = COUNT; i < space; i++)  
+        cout<<" ";  
+    
+    //if ((int) root->symbol != -1 && root->symbol != '\n')
+    if (root->left == NULL and root->right == NULL && root->symbol != '\n')
+        cout<<"(" << root->freq << ", " << root->symbol << ")" <<"\n";  
+    //else if ((int) root->symbol == -1)
+    else if (root->left != NULL && root->right != NULL)
+        cout<<"(" << root->freq << ", " << "[PARENT]" << ")" <<"\n";
+    else
+        cout<<"(" << root->freq << ", " << "\\n" << ")" <<"\n";  
+
+    // Process left child  
+    this->print2DUtil(root->left, space);  
+}  
+  
+// Wrapper over print2DUtil()  
+void HuffmanData::print2D(charNode *root)  
+{  
+    // Pass initial space count as 0  
+    this->print2DUtil(root, 0);  
+}  
+ 

@@ -1,41 +1,40 @@
-#include <iostream>
-#include <fstream>
-#include <queue>
-#include <unordered_map>
-#include <vector>
-#include <string>
 #include "huffmanlib.h"
 
 using namespace std;
-typedef unsigned char byte;
 
+void helpMsg(){
+    cout << "Usage:\n"
+         << "\tTo compress a file:\n"
+         << "\t./huffmanEncode -c [file to compress] [name of compressed file]\n"
+         << "\n\tTo decompress a file:\n"
+         << "\t./huffmanEncode -d [file to decompress] [name of decompressed file]\n";
+}
 
-int main(){
+int main(int argc, char* argv[]){
+    if (argc != 4){
+        cout << "Error: Invalid # of arguments" << endl;
+        helpMsg(); 
+        return 1;
+    }
+
+    if (string(argv[1]) != "-c" && string(argv[1]) != "-d"){
+        cout << "Error: Invalid arguments" << endl;
+        helpMsg();
+        return 2;
+    }
+
+    if (!ifstream(argv[2])){
+        cout << "Error: file '" << string(argv[2]) << "' does not exist" << endl;
+        helpMsg();
+        return 3;
+    }
+
+    string inFile = string(argv[2]);
+    string outFile = string(argv[3]) + ".huff";
+
     
-    string filename = "test.txt";
     /*
-    dataPkg encodingInfo;
-
-    //Count frequencies of symbols in file
-    unordered_map<unsigned char, unsigned long int> freq = countFreq(filename);
-    encodingInfo.uniqueChars = freq.size();
-
-    //Make vector of charNodes
-    vector<charNode> nodes = makeNodes(freq);
-    //freq.clear();
-    
-    //Generate huffman tree
-    charNode* head = makeHuffmanTree(nodes, encodingInfo.uniqueChars);
-    
-    //Create map of huffman codes
-    getCodes(head, encodingInfo.huffmanCodes);
-    string encoded = encodeTree(head);
-    
-    //Record header and msg sizes in bits to make data buffer calculations
-    encodingInfo.header_sz = getHeaderSize(encodingInfo.uniqueChars);
-    encodingInfo.msg_sz = getMsgSize(freq, encodingInfo.huffmanCodes);
-    */
-    /*
+    //testcase:
     charNode* t = new charNode();
     t->left = new charNode();
     t->left->left = new charNode();
@@ -52,26 +51,27 @@ int main(){
     t->right->right->symbol = 'e';
     */
 
-    
-    HuffmanData obj(filename);
+    if (string(argv[1]) == "-c"){
+        HuffmanData obj(inFile);
 
+        cout << endl << "Original file size: " << obj.originalSz << " bytes" << endl;
+        cout << "Compressed file size: " << obj.compressedSz << " bytes" << endl;
+        cout << endl << "Huffman Codes:" << endl << endl;
 
-    cout << "Original file size: " << obj.originalSz << " bytes" << endl;
-    //cout << "Encoded size: " << encodingInfo.header_sz + encodingInfo.msg_sz << " bits" << endl;
-    //byte* data = dataBuffer(head, filename, encodingInfo);
-    byte* data = obj.buffer;
-    cout << "Compressed file size: " << obj.compressedSz << " bytes" << endl;
+        for (auto p : obj.huffmanCodes){
+            cout << p.first << ": " << p.second << endl;
+        }
 
-    for (auto p : obj.huffmanCodes){
-        cout << p.first << " " << p.second << endl;
+        byte* data = obj.buffer;
+
+        obj.writeFile(outFile);
+        cout << endl << "'" << outFile << "' successfully written" << endl;
+        delete[] data;
     }
 
-    for (int i = 0; i < obj.compressedSz; i++){
-        cout << (int) data[i] << " ";
+    else if (string(argv[1]) == "-d"){
+        //code for decompression goes here
     }
-    cout << endl;
-    //print2D(head);
-
 
     return 0;
 }
