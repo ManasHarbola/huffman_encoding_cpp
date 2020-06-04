@@ -109,7 +109,7 @@ public:
     //Returns size of compresed file (in bytes) and value of last 3 bits of file
     pair<unsigned long int, unsigned int> getCompFileSz(); 
     
-    //Get reconstructed Huffman Tree from reading header portion of file
+    //Get reconstructed Huffman Tree from reading header portion of file, puts charNodes into this->nodes
     void getHuffmanTree();
 
     //Writes file to specified filename using ifstream object
@@ -525,11 +525,83 @@ pair<unsigned long int, unsigned int> HuffmanDecode::getCompFileSz(){
     return p;
 }
 
+//For now, assume any *.huff is properly constructed and not tampered.
 void HuffmanDecode::getHuffmanTree(){
-    ifstream inFile(this->inputFileName);
+    //FYI, smallest huffman tree has to be 3 + 16 = 19 bits long (2 bytes + 3 bits) 
+    //In general, the header size should (2 * uniqueChars - 1) + (8 * uniqueChars) bits
+    //a header of '0001a1b1c01d1e' represents this:
+    /*
+          / \
+        /\   /\
+      /\  c d  e
+    a  b 
+    */
+
+    ifstream inFile(this->inputFileName.c_str());
     char c;
+    byte mask = 128;
+    unsigned long int bits_read = 0;
+    bool treeFinished = false;
+    byte byte_frame = 0;
+
+    vector<charNode*> stack;
 
 
+    //Assumes header was written properly
+    /*
+    while (inFile.get(c) && !treeFinished){
+        byte_frame = static_cast<byte>(c);
+
+        //First bit of file MUST be a 0, because of how header is constructed
+        if (bits_read == 0 && (byte_frame & mask != static_cast<byte>(0))){ 
+            cout << "Not a huffman file" << endl;
+            return;
+        }
+        
+        
+    }
+    */
+
+    while (true){
+        if (bits_read == 0){
+            byte_frame = static_cast<byte>(c);
+        }
+
+        if (bits_read == 0 && (byte_frame & mask != static_cast<byte>(0))){ 
+            cout << "Not a huffman file" << endl;
+            return;
+        }
+        else{
+            this->nodes.push_back({0, NULL, NULL, 0});
+
+            stack.push_back(&nodes.at(nodes.size() - 1));
+
+            //push right and left nodes, in that order
+            this->nodes.push_back({0, NULL, NULL, 0});
+            stack.push_back(&nodes.at(nodes.size() - 1));
+            
+            this->nodes.push_back({0, NULL, NULL, 0});
+            stack.push_back(&nodes.at(nodes.size() - 1));
+
+            this->nodes.at(this->nodes.size() - 3).left = &this->nodes.at(this->nodes.size() - 1);
+            this->nodes.at(this->nodes.size() - 3).right = &this->nodes.at(this->nodes.size() - 2);
+
+            mask = 64;
+        }
+        
+
+        if (byte_frame & mask != static_cast<byte>(0)){
+            
+        }
+
+
+
+        
+
+        
+    }
+
+    
     
     
 }
