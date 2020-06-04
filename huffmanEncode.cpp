@@ -52,7 +52,7 @@ int main(int argc, char* argv[]){
     */
 
     if (string(argv[1]) == "-c"){
-        HuffmanData obj(inFile);
+        HuffmanEncode obj(inFile);
 
         cout << endl << "Original file size: " << obj.originalSz << " bytes" << endl;
         cout << "Compressed file size: " << obj.compressedSz << " bytes" << endl;
@@ -63,6 +63,12 @@ int main(int argc, char* argv[]){
         }
 
         byte* data = obj.buffer;
+
+        ///* 
+        for(int i = 0; i < obj.compressedSz; i++){
+            cout << (int) data[i] << " ";
+        }
+        //*/
 
         obj.writeFile(outFile);
         cout << endl << "'" << outFile << "' successfully written" << endl;

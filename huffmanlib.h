@@ -32,17 +32,8 @@ struct compare
 };
 
 
-class HuffmanData
+class HuffmanEncode
 {
-/*
-private:
-    unsigned uniqueChars = 0;
-    unsigned long int headerSz = 0;
-    unsigned long int msgSz = 0;
-    unsigned long int compressedSz = 0;
-    byte* buffer = NULL;
-    unordered_map<byte, string> huffmanCodes;
-*/
 public:
     unsigned uniqueChars = 0;
     unsigned long int headerSz = 0;
@@ -52,15 +43,17 @@ public:
     byte* buffer = NULL;
     unordered_map<byte, string> huffmanCodes;
 
-    HuffmanData(string);
-    ~HuffmanData();
+    HuffmanEncode(string);
+    ~HuffmanEncode();
+
     unordered_map<byte, unsigned long int> countFreq(string);
     vector<charNode> makeNodes(unordered_map<byte, unsigned long int>&);
     charNode* makeHuffmanTree(vector<charNode>&);
+    void getCodes(charNode*, string = "");
+
     unsigned long int getHeaderSize();
     unsigned long int getMsgSize(unordered_map<byte, unsigned long int>&);
 
-    void getCodes(charNode*, string = "");
     byte* dataBuffer(charNode*, string);
     void writeFile(string);
 
@@ -69,18 +62,19 @@ public:
 
 };
 
-HuffmanData::HuffmanData(string filename){
+HuffmanEncode::HuffmanEncode(string filename){
     unordered_map<byte, unsigned long int> freq = this->countFreq(filename);
     this->uniqueChars = freq.size();
 
     vector<charNode> nodes = this->makeNodes(freq);
     charNode* head = this->makeHuffmanTree(nodes);
-    
+
+    //Stores huffman codes into map 
     this->getCodes(head);
 
     this->headerSz = this->getHeaderSize();
     this->msgSz = this->getMsgSize(freq);
-    
+
     for (pair<byte, unsigned long int> p : freq){
         this->originalSz += p.second;
     }
@@ -90,11 +84,62 @@ HuffmanData::HuffmanData(string filename){
     this->print2D(head);
 }
 
-HuffmanData::~HuffmanData(){
+HuffmanEncode::~HuffmanEncode(){
     ;
 }
 
-unordered_map<byte, unsigned long int> HuffmanData::countFreq(string filename){
+class HuffmanDecode
+{
+public:
+    //Name of input compressed file
+    string inputFileName = "";
+    //size of compressed file in, bytes
+    unsigned long int compByteSz = 0;
+    //decimal value of last 3 bits in file
+    unsigned int last3bits = 0;
+    //size of header in bits
+    unsigned long int headerBitSz = 0;
+
+    vector<charNode> nodes;
+    charNode* head = NULL;
+
+    HuffmanDecode(string);
+    ~HuffmanDecode();
+
+    //Returns size of compresed file (in bytes) and value of last 3 bits of file
+    pair<unsigned long int, unsigned int> getCompFileSz(); 
+    
+    //Get reconstructed Huffman Tree from reading header portion of file
+    void getHuffmanTree();
+
+    //Writes file to specified filename using ifstream object
+    void writeFile(string);
+};
+
+HuffmanDecode::HuffmanDecode(string filename)
+{
+    this->inputFileName = filename;
+    pair<unsigned long int, unsigned int> p = this->getCompFileSz();
+    this->compByteSz = p.first;
+    this->last3bits = p.second;
+    //p no longer needed
+    p.~pair();
+
+    getHuffmanTree();
+
+    if (nodes.size() > 0){
+        this->head = &((this->nodes).at(0));
+        //headerSz = (2*n - 1) + 8n bits where n is the number of unique chars
+        this->headerBitSz = (nodes.size() + 1) / 2; //figure out number of unique chars
+        this->headerBitSz = (2*this->headerBitSz - 1) + (8*this->headerBitSz); //calculate headerSz in bits now
+    }
+}
+
+HuffmanDecode::~HuffmanDecode()
+{
+}
+
+unordered_map<byte, unsigned long int> HuffmanEncode::countFreq(string filename){
     unordered_map<unsigned char, unsigned long int> freq;
     ifstream file(filename.c_str());
     char c;
@@ -106,11 +151,17 @@ unordered_map<byte, unsigned long int> HuffmanData::countFreq(string filename){
     return freq;
 }
 
-unsigned long int HuffmanData::getHeaderSize(){
-    return (2 * this->uniqueChars - 1) + (8 * this->uniqueChars);
+unsigned long int HuffmanEncode::getHeaderSize(){
+    if (this->uniqueChars == 1){
+        return 3 + 16;
+    }
+
+    else{
+        return (2 * this->uniqueChars - 1) + (8 * this->uniqueChars);
+    }
 }
 
-unsigned long int HuffmanData::getMsgSize(unordered_map<byte, unsigned long int>& freq){
+unsigned long int HuffmanEncode::getMsgSize(unordered_map<byte, unsigned long int>& freq){
     unsigned long int sz = 0;
     
     for (pair<unsigned char, unsigned long int> p : freq){
@@ -120,10 +171,11 @@ unsigned long int HuffmanData::getMsgSize(unordered_map<byte, unsigned long int>
     return sz;
 }
 
-vector<charNode> HuffmanData::makeNodes(unordered_map<byte, unsigned long int>& freq){
+vector<charNode> HuffmanEncode::makeNodes(unordered_map<byte, unsigned long int>& freq){
     if (freq.size() == 0){
         return vector<charNode>();
     }
+    /*
     else if (freq.size() == 1){
         vector<charNode> output(2);
         for (pair<unsigned char, unsigned long int> p : freq){
@@ -132,10 +184,17 @@ vector<charNode> HuffmanData::makeNodes(unordered_map<byte, unsigned long int>& 
             output.at(1).freq = p.second;
             output.at(1).left = &output.at(0);
         }
+        
         return output;
     }
+    */
     else{
+        if(freq.size() == 1){
+            freq[static_cast<byte>(0)] = 0;
+        }
+
         vector<charNode> output(2 * freq.size() - 1);
+
         unsigned i = 0;
         for (pair<unsigned char, unsigned long int> p : freq){
             output.at(i).symbol = p.first;
@@ -146,14 +205,15 @@ vector<charNode> HuffmanData::makeNodes(unordered_map<byte, unsigned long int>& 
     }
 }
 
-charNode* HuffmanData::makeHuffmanTree(vector<charNode>& nodes){
+charNode* HuffmanEncode::makeHuffmanTree(vector<charNode>& nodes){
     if (this->uniqueChars == 0){
         return NULL;
     }
     else if (this->uniqueChars == 1){
-        nodes.at(1).left = &nodes.at(0);
-        nodes.at(1).freq = nodes.at(0).freq;
-        return &nodes.at(1);
+        nodes.at(2).left = &nodes.at(0);
+        nodes.at(2).right = &nodes.at(1);
+        nodes.at(2).freq = nodes.at(0).freq + nodes.at(1).freq;
+        return &nodes.at(2);
     }
     else{
         priority_queue<charNode*, vector<charNode*>, compare> nodeQueue;
@@ -182,7 +242,7 @@ charNode* HuffmanData::makeHuffmanTree(vector<charNode>& nodes){
     }
 }
 
-void HuffmanData::getCodes(charNode* head, string currCode /*=""*/){
+void HuffmanEncode::getCodes(charNode* head, string currCode /*=""*/){
     //Error Case when huffman tree is empty:
     if (head == NULL){
         return;
@@ -204,7 +264,7 @@ void HuffmanData::getCodes(charNode* head, string currCode /*=""*/){
 }
 
 //Returns buffer of entire encoded data (header + message)
-byte* HuffmanData::dataBuffer(charNode* head, string filename){
+byte* HuffmanEncode::dataBuffer(charNode* head, string filename){
     unsigned long int sz_bytes = this->headerSz + this->msgSz;
     
     //Number of zero bits to add at end of file
@@ -393,19 +453,16 @@ byte* HuffmanData::dataBuffer(charNode* head, string filename){
     return data;
 }
 
-void HuffmanData::writeFile(string filename){
+void HuffmanEncode::writeFile(string filename){
     if (this->buffer != NULL){
         ofstream file(filename.c_str(), ios::out | ios::binary);
-
-        for (unsigned long int i = 0; i < this->compressedSz; i++){
-            file.write((char*) &this->buffer[i], sizeof(char));
-        }
+        file.write((char*) this->buffer, this->compressedSz);
     }
 }
 
 #define COUNT 10
 
-void HuffmanData::print2DUtil(charNode *root, int space)  
+void HuffmanEncode::print2DUtil(charNode *root, int space)  
 {  
     // Base case  
     if (root == NULL)  
@@ -437,9 +494,42 @@ void HuffmanData::print2DUtil(charNode *root, int space)
 }  
   
 // Wrapper over print2DUtil()  
-void HuffmanData::print2D(charNode *root)  
+void HuffmanEncode::print2D(charNode *root)  
 {  
     // Pass initial space count as 0  
     this->print2DUtil(root, 0);  
 }  
- 
+
+pair<unsigned long int, unsigned int> HuffmanDecode::getCompFileSz(){
+    ifstream inFile(this->inputFileName.c_str());
+    pair<unsigned long int, unsigned int> p = {0,0};
+
+    if (inFile){
+        const auto begin = inFile.tellg();
+        inFile.seekg(0, ios::end);
+        const auto end = inFile.tellg();
+
+        p.first = (end - begin);
+        
+        inFile.seekg(-1, ios::end);
+        char c;
+        inFile.get(c);
+        inFile.close();
+
+        byte b = static_cast<byte>(c);
+        //mask b with 0b00000111
+        b = b & static_cast<byte>(7);
+        p.second = (unsigned int) b;
+    }
+
+    return p;
+}
+
+void HuffmanDecode::getHuffmanTree(){
+    ifstream inFile(this->inputFileName);
+    char c;
+
+
+    
+    
+}
