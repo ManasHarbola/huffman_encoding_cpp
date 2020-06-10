@@ -11,18 +11,19 @@ void helpMsg(){
 }
 
 int main(int argc, char* argv[]){
+    //Check # of args
     if (argc != 4){
         cout << "Error: Invalid # of arguments" << endl;
         helpMsg(); 
         return 1;
     }
-
+    //Check if args are valid
     if (string(argv[1]) != "-c" && string(argv[1]) != "-d"){
         cout << "Error: Invalid arguments" << endl;
         helpMsg();
         return 2;
     }
-
+    //Check if file exists if being compressed of decompressed
     if (!ifstream(argv[2])){
         cout << "Error: file '" << string(argv[2]) << "' does not exist" << endl;
         helpMsg();
@@ -32,25 +33,6 @@ int main(int argc, char* argv[]){
     string inFilename = string(argv[2]);
     string outFilename; 
 
-    
-    /*
-    //testcase:
-    charNode* t = new charNode();
-    t->left = new charNode();
-    t->left->left = new charNode();
-    t->left->left->left = new charNode();
-    t->left->left->left->symbol = 'a';
-    t->left->left->right = new charNode();
-    t->left->left->right->symbol = 'b';
-    t->left->right = new charNode();
-    t->left->right->symbol = 'c';
-    t->right = new charNode();
-    t->right->left = new charNode();
-    t->right->left->symbol = 'd';
-    t->right->right = new charNode();
-    t->right->right->symbol = 'e';
-    */
-
     if (string(argv[1]) == "-c"){
         outFilename = string(argv[3]) + ".huff"; 
         HuffmanEncode obj(inFilename);
@@ -59,17 +41,17 @@ int main(int argc, char* argv[]){
         cout << "Compressed file size: " << obj.compressedSz << " bytes" << endl;
         cout << endl << "Huffman Codes:" << endl << endl;
 
-        for (auto p : obj.huffmanCodes){
+        for (pair<byte, string> p : obj.huffmanCodes){
             cout << p.first << ": " << p.second << endl;
         }
 
         byte* data = obj.buffer;
 
-        ///* 
+        /* 
         for(int i = 0; i < obj.compressedSz; i++){
             cout << (int) data[i] << " ";
         }
-        //*/
+        */
 
         obj.encodeFile(outFilename);
         cout << endl << "'" << outFilename << "' successfully written" << endl;
@@ -78,11 +60,8 @@ int main(int argc, char* argv[]){
 
     else if (string(argv[1]) == "-d"){
         outFilename = string(argv[3]);
-
         HuffmanDecode obj(inFilename);
-        //print2D(obj.head);
         obj.decodeFile(outFilename);
-
         cout << endl << "'" << outFilename << "' successfully written" << endl;
     }
 

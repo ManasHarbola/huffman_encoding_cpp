@@ -62,9 +62,6 @@ public:
     byte* dataBuffer(charNode*, string);
     void encodeFile(string);
 
-    //static void print2DUtil(charNode *root, int space);
-    //static void print2D(charNode *root);  
-
 };
 
 HuffmanEncode::HuffmanEncode(string filename){
@@ -169,7 +166,6 @@ unsigned long int HuffmanEncode::getHeaderSize(){
     if (this->uniqueChars == 1){
         return 3 + 16;
     }
-
     else{
         return (2 * this->uniqueChars - 1) + (8 * this->uniqueChars);
     }
@@ -177,11 +173,9 @@ unsigned long int HuffmanEncode::getHeaderSize(){
 
 unsigned long int HuffmanEncode::getMsgSize(unordered_map<byte, unsigned long int>& freq){
     unsigned long int sz = 0;
-    
     for (pair<unsigned char, unsigned long int> p : freq){
         sz += p.second * this->huffmanCodes[p.first].length();
     }
-
     return sz;
 }
 
@@ -189,19 +183,6 @@ vector<charNode> HuffmanEncode::makeNodes(unordered_map<byte, unsigned long int>
     if (freq.size() == 0){
         return vector<charNode>();
     }
-    /*
-    else if (freq.size() == 1){
-        vector<charNode> output(2);
-        for (pair<unsigned char, unsigned long int> p : freq){
-            output.at(0).symbol = p.first;
-            output.at(0).freq = p.second;
-            output.at(1).freq = p.second;
-            output.at(1).left = &output.at(0);
-        }
-        
-        return output;
-    }
-    */
     else{
         if(freq.size() == 1){
             freq[static_cast<byte>(0)] = 0;
@@ -587,23 +568,9 @@ void HuffmanDecode::getHuffmanTree(){
 
     //When loop begins, mask == 64 (guaranteed)
     while (!stack.empty()){
-        //leaf node encountered
-        //cout << (int)byte_frame << " " << (int)mask << " " << (int)((byte_frame & mask) != static_cast<byte>(0)) << endl;
-
+        //Case 1: leaf node encountered
         if ((byte_frame & mask) != static_cast<byte>(0)){
             bits_read += 1;
-
-            //xrrrrrrr rxxxxxxx
-            //xxrrrrrr rrxxxxxx
-            //xxxrrrrr rrrxxxxx
-            //xxxxrrrr rrrrxxxx
-            //xxxxxrrr rrrrrxxx
-            //xxxxxxrr rrrrrrxx
-            //xxxxxxxr rrrrrrrx
-            //xxxxxxxx rrrrrrrr
-
-            //cout << "Before mask: " << (int) mask << endl;
-
             //initialize mask to grab character symbol 
             if (bits_read % 8 == 0){
                 mask = static_cast<byte>(0);
@@ -611,52 +578,41 @@ void HuffmanDecode::getHuffmanTree(){
             else{
                 mask = static_cast<byte>(pow(2, 8 - (bits_read % 8)) - 1);
             }
-            
-            //cout << "After mask: " << (int) mask << endl;
-
             //Grab portion of character
             byte_frame = byte_frame & mask;
-
             //Left shift byte_frame to get fill in remaining bits
             byte_frame *= static_cast<int>(pow(2, (bits_read % 8)));
-
             //Retrieve next byte
             inFile.get(c);
-
-            byte byte_tmp = static_cast<byte>(c);
             
+            byte byte_tmp = static_cast<byte>(c);
             //Strip off bits on the right
             byte remaining = byte_tmp;
-
             if (bits_read % 8 != 0){
                 remaining /= static_cast<int>(pow(2, 8 - (bits_read % 8)));
             }
-
             //Piece together byte_frame 
             byte_frame = byte_frame | remaining;
-
             //Create leaf node and assign symbol value
             this->nodes[curr_idx] = empty_node;
             this->nodes[curr_idx].symbol = byte_frame;
-
             //Check which children current parent has and link child to parent
-           if (stack.at(stack.size() - 1)->left == NULL){
-               stack.at(stack.size() - 1)->left = &this->nodes[curr_idx];
-           }
-           else{
-               stack.at(stack.size() - 1)->right = &this->nodes[curr_idx];
-           }
+            if (stack.at(stack.size() - 1)->left == NULL){
+                stack.at(stack.size() - 1)->left = &this->nodes[curr_idx];
+            }
+            else{
+                stack.at(stack.size() - 1)->right = &this->nodes[curr_idx];
+            }
 
             //Pop parent node off stack only if it has both children
             if (stack.at(stack.size() - 1)->left != NULL && stack.at(stack.size() - 1)->right != NULL){
                 stack.pop_back();
             }
-
-            //byte_tmp was not completely copied onto byte_frame
+            //Case 1: byte_tmp was not completely copied onto byte_frame
             if (bits_read % 8 != 0){
                 byte_frame = byte_tmp;
             }
-            //byte_tmp was completely read
+            //Case 2: byte_tmp was completely read
             else{
                 inFile.get(c);
                 byte_frame = static_cast<byte>(c);
@@ -670,23 +626,19 @@ void HuffmanDecode::getHuffmanTree(){
             mask = static_cast<int>(pow(2, 7 - (bits_read % 8)));
         }
 
-        //Parent node encountered
+        //Case 2: Parent node encountered
         else{
             bits_read++;
-
             if (bits_read % 8 == 0){
                 inFile.get(c);
                 byte_frame = static_cast<byte>(c);
             }
             mask = static_cast<int>(pow(2, 7 - (bits_read % 8)));
-
+            
             //Create child node
-            //this->nodes.push_back(empty_node);
-
             this->nodes[curr_idx] = empty_node;
 
             //Determine location of child node
-
             if (stack.at(stack.size() - 1)->left == NULL){
                 stack.at(stack.size() - 1)->left = &this->nodes[curr_idx];
             }
@@ -706,7 +658,6 @@ void HuffmanDecode::getHuffmanTree(){
             curr_idx++;
         }
     }
-    
     this->headerBitSz = bits_read;
     inFile.close();
 }
@@ -723,7 +674,6 @@ void HuffmanDecode::decodeFile(string filename){
     std::streamoff offset = (this->headerBitSz/8) + (int)(this->headerBitSz % 8 != 0) - 1;
     //Skip to encoded portion of file
     encodedFile.seekg(offset, ios::beg);
-
     charNode* curr = this->head;
     if (curr == NULL){
         return;
@@ -751,7 +701,7 @@ void HuffmanDecode::decodeFile(string filename){
         else{
             curr = curr->left;
         }
-
+        //Update values
         bits_read++;
         mask /= 2;
         if (curr->left == NULL && curr->right == NULL){
