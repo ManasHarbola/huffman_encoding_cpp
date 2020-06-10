@@ -1,5 +1,4 @@
 #include "huffmanlib.h"
-
 using namespace std;
 
 void helpMsg(){
@@ -46,12 +45,6 @@ int main(int argc, char* argv[]){
         }
 
         byte* data = obj.buffer;
-
-        /* 
-        for(int i = 0; i < obj.compressedSz; i++){
-            cout << (int) data[i] << " ";
-        }
-        */
 
         obj.encodeFile(outFilename);
         cout << endl << "'" << outFilename << "' successfully written" << endl;

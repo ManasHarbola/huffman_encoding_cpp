@@ -302,7 +302,7 @@ byte* HuffmanEncode::dataBuffer(charNode* head, string filename){
             byte_frame += 1;
             ++bits_written;
             if (byte_empty == true){
-                byte_empty == false;
+                byte_empty = false;
             }
             
             //mask for copying symbol data to byte_frame
