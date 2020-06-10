@@ -4,10 +4,12 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <cmath>
 
 using namespace std;
 
 typedef unsigned char byte;
+#define NUM_NODES 511
 
 struct charNode{
     //char symbol = -1;
@@ -30,6 +32,9 @@ struct compare
         }
     }
 };
+
+void print2D(charNode*);
+void print2DUtil(charNode*, int);
 
 
 class HuffmanEncode
@@ -55,10 +60,10 @@ public:
     unsigned long int getMsgSize(unordered_map<byte, unsigned long int>&);
 
     byte* dataBuffer(charNode*, string);
-    void writeFile(string);
+    void encodeFile(string);
 
-    void print2DUtil(charNode *root, int space);
-    void print2D(charNode *root);  
+    //static void print2DUtil(charNode *root, int space);
+    //static void print2D(charNode *root);  
 
 };
 
@@ -81,7 +86,8 @@ HuffmanEncode::HuffmanEncode(string filename){
 
     this->buffer = this->dataBuffer(head, filename);
 
-    this->print2D(head);
+    //this->print2D(head);
+    print2D(head);
 }
 
 HuffmanEncode::~HuffmanEncode(){
@@ -93,15 +99,23 @@ class HuffmanDecode
 public:
     //Name of input compressed file
     string inputFileName = "";
+
     //size of compressed file in, bytes
     unsigned long int compByteSz = 0;
+
     //decimal value of last 3 bits in file
     unsigned int last3bits = 0;
+
     //size of header in bits
     unsigned long int headerBitSz = 0;
+    
+    //number of unique characters
+    unsigned long int uniqueChars = 0;
 
-    vector<charNode> nodes;
+    charNode nodes[NUM_NODES];
     charNode* head = NULL;
+
+    //charNode* head = nodes;
 
     HuffmanDecode(string);
     ~HuffmanDecode();
@@ -113,7 +127,7 @@ public:
     void getHuffmanTree();
 
     //Writes file to specified filename using ifstream object
-    void writeFile(string);
+    void decodeFile(string);
 };
 
 HuffmanDecode::HuffmanDecode(string filename)
@@ -127,12 +141,12 @@ HuffmanDecode::HuffmanDecode(string filename)
 
     getHuffmanTree();
 
-    if (nodes.size() > 0){
-        this->head = &((this->nodes).at(0));
-        //headerSz = (2*n - 1) + 8n bits where n is the number of unique chars
-        this->headerBitSz = (nodes.size() + 1) / 2; //figure out number of unique chars
-        this->headerBitSz = (2*this->headerBitSz - 1) + (8*this->headerBitSz); //calculate headerSz in bits now
+    if (this->uniqueChars > 0){
+        this->head = &this->nodes[0];
+        this->headerBitSz = (2 * this->uniqueChars - 1) + (8 * this->uniqueChars);
     }
+    //print2D(this->head);
+    //cout << this->headerBitSz << endl;
 }
 
 HuffmanDecode::~HuffmanDecode()
@@ -453,7 +467,7 @@ byte* HuffmanEncode::dataBuffer(charNode* head, string filename){
     return data;
 }
 
-void HuffmanEncode::writeFile(string filename){
+void HuffmanEncode::encodeFile(string filename){
     if (this->buffer != NULL){
         ofstream file(filename.c_str(), ios::out | ios::binary);
         file.write((char*) this->buffer, this->compressedSz);
@@ -462,7 +476,7 @@ void HuffmanEncode::writeFile(string filename){
 
 #define COUNT 10
 
-void HuffmanEncode::print2DUtil(charNode *root, int space)  
+void print2DUtil(charNode *root, int space)  
 {  
     // Base case  
     if (root == NULL)  
@@ -472,7 +486,7 @@ void HuffmanEncode::print2DUtil(charNode *root, int space)
     space += COUNT;  
   
     // Process right child first  
-    this->print2DUtil(root->right, space);  
+    print2DUtil(root->right, space);  
   
     // Print current node after space  
     // count  
@@ -481,23 +495,26 @@ void HuffmanEncode::print2DUtil(charNode *root, int space)
         cout<<" ";  
     
     //if ((int) root->symbol != -1 && root->symbol != '\n')
-    if (root->left == NULL and root->right == NULL && root->symbol != '\n')
+    if (root->left == NULL and root->right == NULL && (root->symbol != '\n' || root->symbol != '\0'))
         cout<<"(" << root->freq << ", " << root->symbol << ")" <<"\n";  
     //else if ((int) root->symbol == -1)
     else if (root->left != NULL && root->right != NULL)
         cout<<"(" << root->freq << ", " << "[PARENT]" << ")" <<"\n";
+    else if ((int) root->symbol == 10)
+        cout<<"(" << root->freq << ", " << "\\n" << ")" <<"\n"; 
     else
-        cout<<"(" << root->freq << ", " << "\\n" << ")" <<"\n";  
+        cout<<"(" << root->freq << ", " << "\\0" << ")" <<"\n"; 
+
 
     // Process left child  
-    this->print2DUtil(root->left, space);  
+    print2DUtil(root->left, space);  
 }  
   
 // Wrapper over print2DUtil()  
-void HuffmanEncode::print2D(charNode *root)  
+void print2D(charNode *root)  
 {  
     // Pass initial space count as 0  
-    this->print2DUtil(root, 0);  
+    print2DUtil(root, 0);  
 }  
 
 pair<unsigned long int, unsigned int> HuffmanDecode::getCompFileSz(){
@@ -539,69 +556,211 @@ void HuffmanDecode::getHuffmanTree(){
 
     ifstream inFile(this->inputFileName.c_str());
     char c;
+    byte byte_frame = 0;
     byte mask = 128;
     unsigned long int bits_read = 0;
-    bool treeFinished = false;
-    byte byte_frame = 0;
+    unsigned long int curr_idx = 0;
 
     vector<charNode*> stack;
-
-
-    //Assumes header was written properly
-    /*
-    while (inFile.get(c) && !treeFinished){
+    charNode empty_node = {(unsigned char)0, 0, NULL, NULL};
+    if (bits_read == 0){
+        inFile.get(c);
         byte_frame = static_cast<byte>(c);
-
-        //First bit of file MUST be a 0, because of how header is constructed
-        if (bits_read == 0 && (byte_frame & mask != static_cast<byte>(0))){ 
-            cout << "Not a huffman file" << endl;
-            return;
-        }
+        //inFile.seekg(ios::beg);
         
-        
-    }
-    */
+        //cout << (int)byte_frame << " " << (int)mask << " " << (int)((byte_frame & mask) != static_cast<byte>(0)) << endl;
 
-    while (true){
-        if (bits_read == 0){
-            byte_frame = static_cast<byte>(c);
-        }
-
-        if (bits_read == 0 && (byte_frame & mask != static_cast<byte>(0))){ 
-            cout << "Not a huffman file" << endl;
+        if ((byte_frame & mask) != static_cast<byte>(0)){ 
+            cout << "Invalid header" << endl;
+            inFile.close();
             return;
         }
         else{
-            this->nodes.push_back({0, NULL, NULL, 0});
-
-            stack.push_back(&nodes.at(nodes.size() - 1));
-
-            //push right and left nodes, in that order
-            this->nodes.push_back({0, NULL, NULL, 0});
-            stack.push_back(&nodes.at(nodes.size() - 1));
-            
-            this->nodes.push_back({0, NULL, NULL, 0});
-            stack.push_back(&nodes.at(nodes.size() - 1));
-
-            this->nodes.at(this->nodes.size() - 3).left = &this->nodes.at(this->nodes.size() - 1);
-            this->nodes.at(this->nodes.size() - 3).right = &this->nodes.at(this->nodes.size() - 2);
-
-            mask = 64;
+            this->nodes[curr_idx] = empty_node;
+            //push root into stack 
+            stack.push_back(&this->nodes[curr_idx]);
+            curr_idx++;
+            bits_read++;
+            mask = static_cast<int>(pow(2, 7 - (bits_read % 8)));
         }
-        
-
-        if (byte_frame & mask != static_cast<byte>(0)){
-            
-        }
-
-
-
-        
-
-        
     }
 
+    //When loop begins, mask == 64 (guaranteed)
+    while (!stack.empty()){
+        //leaf node encountered
+        //cout << (int)byte_frame << " " << (int)mask << " " << (int)((byte_frame & mask) != static_cast<byte>(0)) << endl;
+
+        if ((byte_frame & mask) != static_cast<byte>(0)){
+            bits_read += 1;
+
+            //xrrrrrrr rxxxxxxx
+            //xxrrrrrr rrxxxxxx
+            //xxxrrrrr rrrxxxxx
+            //xxxxrrrr rrrrxxxx
+            //xxxxxrrr rrrrrxxx
+            //xxxxxxrr rrrrrrxx
+            //xxxxxxxr rrrrrrrx
+            //xxxxxxxx rrrrrrrr
+
+            //cout << "Before mask: " << (int) mask << endl;
+
+            //initialize mask to grab character symbol 
+            if (bits_read % 8 == 0){
+                mask = static_cast<byte>(0);
+            }
+            else{
+                mask = static_cast<byte>(pow(2, 8 - (bits_read % 8)) - 1);
+            }
+            
+            //cout << "After mask: " << (int) mask << endl;
+
+            //Grab portion of character
+            byte_frame = byte_frame & mask;
+
+            //Left shift byte_frame to get fill in remaining bits
+            byte_frame *= static_cast<int>(pow(2, (bits_read % 8)));
+
+            //Retrieve next byte
+            inFile.get(c);
+
+            byte byte_tmp = static_cast<byte>(c);
+            
+            //Strip off bits on the right
+            byte remaining = byte_tmp;
+
+            if (bits_read % 8 != 0){
+                remaining /= static_cast<int>(pow(2, 8 - (bits_read % 8)));
+            }
+
+            //Piece together byte_frame 
+            byte_frame = byte_frame | remaining;
+
+            //Create leaf node and assign symbol value
+            this->nodes[curr_idx] = empty_node;
+            this->nodes[curr_idx].symbol = byte_frame;
+
+            //Check which children current parent has and link child to parent
+           if (stack.at(stack.size() - 1)->left == NULL){
+               stack.at(stack.size() - 1)->left = &this->nodes[curr_idx];
+           }
+           else{
+               stack.at(stack.size() - 1)->right = &this->nodes[curr_idx];
+           }
+
+            //Pop parent node off stack only if it has both children
+            if (stack.at(stack.size() - 1)->left != NULL && stack.at(stack.size() - 1)->right != NULL){
+                stack.pop_back();
+            }
+
+            //byte_tmp was not completely copied onto byte_frame
+            if (bits_read % 8 != 0){
+                byte_frame = byte_tmp;
+            }
+            //byte_tmp was completely read
+            else{
+                inFile.get(c);
+                byte_frame = static_cast<byte>(c);
+            }
+
+            //Update bits_read, curr_idx, and uniqueChars
+            bits_read += 8;
+            curr_idx++;
+            this->uniqueChars++;
+            //Set mask to next value
+            mask = static_cast<int>(pow(2, 7 - (bits_read % 8)));
+        }
+
+        //Parent node encountered
+        else{
+            bits_read++;
+
+            if (bits_read % 8 == 0){
+                inFile.get(c);
+                byte_frame = static_cast<byte>(c);
+            }
+            mask = static_cast<int>(pow(2, 7 - (bits_read % 8)));
+
+            //Create child node
+            //this->nodes.push_back(empty_node);
+
+            this->nodes[curr_idx] = empty_node;
+
+            //Determine location of child node
+
+            if (stack.at(stack.size() - 1)->left == NULL){
+                stack.at(stack.size() - 1)->left = &this->nodes[curr_idx];
+            }
+            else{
+                stack.at(stack.size() - 1)->right = &this->nodes[curr_idx];
+            }
+
+            //Pop from stack only if parent has both children
+            if (stack.at(stack.size() - 1)->left != NULL && stack.at(stack.size() - 1)->right != NULL){
+                stack.pop_back();
+            }
+            
+            //Add child node to stack
+            stack.push_back(&this->nodes[curr_idx]);
+
+            //Update curr_idx
+            curr_idx++;
+        }
+    }
     
+    this->headerBitSz = bits_read;
+    inFile.close();
+}
+
+//Assumes file at this->inputFileName is not empty and that this->head is not null
+void HuffmanDecode::decodeFile(string filename){
+    ifstream encodedFile(this->inputFileName.c_str());
+    ofstream decodedFile(filename.c_str(), std::ios::out | std::ios::binary);
+    if (!encodedFile || !decodedFile){
+        cout << "Error: Something went wrong" << endl;
+        return;
+    }
     
+    std::streamoff offset = (this->headerBitSz/8) + (int)(this->headerBitSz % 8 != 0) - 1;
+    //Skip to encoded portion of file
+    encodedFile.seekg(offset, ios::beg);
+
+    charNode* curr = this->head;
+    if (curr == NULL){
+        return;
+    }
+
+    char c;
+    byte byte_frame = static_cast<byte>(0);
+    byte mask = static_cast<byte>(pow(2, 7 - (this->headerBitSz % 8)));
+    unsigned long int bits_read = 0;
+    unsigned long int encodedBitSz = this->compByteSz*8 - this->headerBitSz - 3 - (7 - this->last3bits);
     
+    while(bits_read < encodedBitSz){
+        if (bits_read == 0 || mask == static_cast<byte>(0)){
+            encodedFile.get(c);
+            byte_frame = static_cast<byte>(c);
+
+            if (mask == static_cast<byte>(0)){
+                mask = 128;
+            }
+        }
+
+        if ((byte_frame & mask) != static_cast<byte>(0)){
+            curr = curr->right;            
+        }
+        else{
+            curr = curr->left;
+        }
+
+        bits_read++;
+        mask /= 2;
+        if (curr->left == NULL && curr->right == NULL){
+            //Write character to file
+            decodedFile.write(reinterpret_cast<const char*>(&curr->symbol), sizeof(byte));
+            curr = this->head;
+        }
+    }
+    
+    encodedFile.close();
+    decodedFile.close();
 }

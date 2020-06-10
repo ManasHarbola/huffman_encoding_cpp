@@ -29,8 +29,8 @@ int main(int argc, char* argv[]){
         return 3;
     }
 
-    string inFile = string(argv[2]);
-    string outFile = string(argv[3]) + ".huff";
+    string inFilename = string(argv[2]);
+    string outFilename; 
 
     
     /*
@@ -52,7 +52,8 @@ int main(int argc, char* argv[]){
     */
 
     if (string(argv[1]) == "-c"){
-        HuffmanEncode obj(inFile);
+        outFilename = string(argv[3]) + ".huff"; 
+        HuffmanEncode obj(inFilename);
 
         cout << endl << "Original file size: " << obj.originalSz << " bytes" << endl;
         cout << "Compressed file size: " << obj.compressedSz << " bytes" << endl;
@@ -70,13 +71,19 @@ int main(int argc, char* argv[]){
         }
         //*/
 
-        obj.writeFile(outFile);
-        cout << endl << "'" << outFile << "' successfully written" << endl;
+        obj.encodeFile(outFilename);
+        cout << endl << "'" << outFilename << "' successfully written" << endl;
         delete[] data;
     }
 
     else if (string(argv[1]) == "-d"){
-        //code for decompression goes here
+        outFilename = string(argv[3]);
+
+        HuffmanDecode obj(inFilename);
+        //print2D(obj.head);
+        obj.decodeFile(outFilename);
+
+        cout << endl << "'" << outFilename << "' successfully written" << endl;
     }
 
     return 0;
